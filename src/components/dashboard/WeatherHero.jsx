@@ -28,7 +28,8 @@ export function getTimeGreeting(timeZone) {
   }
 }
 
-function formatLastUpdated(lastUpdated, timeZone) {
+function formatLastUpdated(lastUpdated, timeZone, isDemo) {
+  if (isDemo) return 'Demo data';
   if (!lastUpdated) return 'Updated just now';
   try {
     // If it's an ISO timestamp or date string, format as HH:mm
@@ -54,10 +55,11 @@ function formatLastUpdated(lastUpdated, timeZone) {
 
 export default function WeatherHero({ userName, userLocation, weather }) {
   if (!weather || !weather.current) return null;
-  const { current, location } = weather;
+  const { current, location, meta } = weather;
   const timeZone = location?.timezone;
   const greeting = getTimeGreeting(timeZone);
   const displayLocation = userLocation || location.city;
+  const isDemo = Boolean(meta?.isDemo);
 
   return (
     <section className="weather-hero-section">
@@ -67,7 +69,11 @@ export default function WeatherHero({ userName, userLocation, weather }) {
           {greeting}, <span className="greeting-name">{userName || 'Friend'}</span> 👋
         </h1>
         <p className="greeting-subtitle">
-          Here's your weather outlook for <span className="greeting-location">{displayLocation}</span>
+          {isDemo ? (
+            <>Simulated weather outlook for <span className="greeting-location">{displayLocation}</span></>
+          ) : (
+            <>Here's your weather outlook for <span className="greeting-location">{displayLocation}</span></>
+          )}
         </p>
       </div>
 
@@ -79,12 +85,20 @@ export default function WeatherHero({ userName, userLocation, weather }) {
             <span>{displayLocation}</span>
           </div>
           <div className="hero-status-pills">
-            {weather.meta?.isStale && (
+            {isDemo && (
+              <span
+                className="hero-demo-pill"
+                title="Live provider temporarily rate-limited — showing simulated demo data"
+              >
+                Demo Data
+              </span>
+            )}
+            {meta?.isStale && !isDemo && (
               <span className="hero-stale-pill" title="Showing recent data from cache">
                 Showing recent data
               </span>
             )}
-            <span className="hero-updated-time">{formatLastUpdated(location.lastUpdated, timeZone)}</span>
+            <span className="hero-updated-time">{formatLastUpdated(location.lastUpdated, timeZone, isDemo)}</span>
           </div>
         </div>
 

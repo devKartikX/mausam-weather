@@ -171,6 +171,16 @@ export default function Dashboard({ userProfile, onEditPreferences }) {
             alertsProvider={weatherData.meta?.alertsProvider || 'IMD / NDMA Sachet'}
           />
 
+          {/* Demo Fallback Notice Banner (when live Open-Meteo is rate-limited on shared IP) */}
+          {weatherData.meta?.isDemo && (
+            <div className="dashboard-demo-notice" role="status" aria-live="polite">
+              <span className="demo-notice-badge">Demo Data</span>
+              <span className="demo-notice-text">
+                Live provider temporarily unavailable · Showing simulated forecast
+              </span>
+            </div>
+          )}
+
           {/* Personalized Greeting + Current Weather Hero */}
           <WeatherHero
             userName={name}
@@ -243,7 +253,9 @@ export default function Dashboard({ userProfile, onEditPreferences }) {
           Switch interests or change city to update your profile.
         </p>
         <p className="footer-sources-note">
-          Weather: Open-Meteo • AQI: US EPA • Warnings: Official IMD/NDMA CAP • Marine: Open-Meteo
+          {weatherData?.meta?.isDemo
+            ? 'Weather: Simulated Demo Outlook (Live Provider Rate-Limited) • AQI: US EPA • Warnings: Official IMD/NDMA CAP'
+            : 'Weather: Open-Meteo • AQI: US EPA • Warnings: Official IMD/NDMA CAP • Marine: Open-Meteo'}
         </p>
       </section>
     </div>

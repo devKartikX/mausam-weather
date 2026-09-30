@@ -5,8 +5,12 @@ Fetches:
   1. Forecast API: current observations, 10-hour forecast, 7-day daily forecast.
   2. Air Quality API: US AQI, PM2.5, PM10.
 
-Requests are made sequentially (forecast first, then AQI) for production
-reliability — the critical forecast is isolated from AQI failures.
+API Key support:
+  Set OPEN_METEO_API_KEY environment variable to use the authenticated
+  Open-Meteo commercial endpoints (customer-api.open-meteo.com).
+  Without a key, the public endpoints are used (subject to shared-IP rate limits).
+
+Requests are sequential (forecast first, then AQI) for production reliability.
 Transient failures are retried up to 3 times with exponential backoff.
 
 Attribution note:
@@ -15,11 +19,13 @@ Attribution note:
 
 import asyncio
 import logging
+import os
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 import httpx
 
 from backend.schemas.location import LocationResult
+from backend.services.providers.fallback_weather import build_fallback_weather
 from backend.services.utils import (
     map_wmo_code,
     degrees_to_compass,
@@ -28,6 +34,32 @@ from backend.services.utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class OpenMeteoRateLimitError(Exception):
+    """Raised specifically when Open-Meteo returns HTTP 429 (rate limit exceeded on shared IP)."""
+    def __init__(self, message: str = "Open-Meteo rate limit exceeded", response_body: str = ""):
+        super().__init__(message)
+        self.response_body = response_body
+
+# ---------------------------------------------------------------------------
+# API Key & Endpoint Configuration
+# ---------------------------------------------------------------------------
+# With an API key → authenticated commercial endpoints (per-key rate limits)
+# Without an API key → public endpoints (per-IP rate limits, may 429 on shared hosts)
+_API_KEY = os.getenv("OPEN_METEO_API_KEY", "").strip()
+
+if _API_KEY:
+    _FORECAST_URL = "https://customer-api.open-meteo.com/v1/forecast"
+    _AIR_QUALITY_URL = "https://customer-air-quality-api.open-meteo.com/v1/air-quality"
+    logger.info("Open-Meteo: using authenticated commercial endpoints (API key present)")
+else:
+    _FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
+    _AIR_QUALITY_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
+    logger.warning(
+        "Open-Meteo: using public endpoints — set OPEN_METEO_API_KEY for production "
+        "to avoid shared-IP rate limits (HTTP 429)."
+    )
 
 # Transient error types that warrant a retry
 _TRANSIENT_EXCEPTIONS = (
@@ -52,7 +84,7 @@ async def _fetch_with_retry(
     Fetch a URL with bounded exponential-backoff retry for transient errors.
 
     Retries: ConnectTimeout, ReadTimeout, ConnectError, RemoteProtocolError.
-    Does NOT retry: 4xx client errors, 5xx server errors (except 503/429 on attempt 1).
+    Does NOT retry: 4xx client errors (including 429 — caller handles).
     Raises on permanent failure.
     """
     last_exc = None
@@ -64,15 +96,26 @@ async def _fetch_with_retry(
             )
             resp = await client.get(url, params=params, headers=headers)
 
-            # Retry on 429 / 503 only on first attempt
-            if resp.status_code in (429, 503) and attempt < max_attempts:
+            # Retry on 503 only (temporary server unavailability), not 429
+            if resp.status_code == 503 and attempt < max_attempts:
                 delay = 0.5 * (2 ** (attempt - 1))
                 logger.warning(
-                    "RETRY label=%s status=%d attempt=%d delay=%.1fs",
-                    label, resp.status_code, attempt, delay,
+                    "RETRY label=%s status=503 attempt=%d delay=%.1fs",
+                    label, attempt, delay,
                 )
                 await asyncio.sleep(delay)
                 continue
+
+            if resp.status_code == 429:
+                body_text = resp.text[:300]
+                logger.warning(
+                    "OPEN_METEO_429 label=%s url=%s body=%s",
+                    label, url, body_text,
+                )
+                raise OpenMeteoRateLimitError(
+                    f"Open-Meteo rate limit (HTTP 429) exceeded for {label}",
+                    response_body=body_text,
+                )
 
             resp.raise_for_status()
             logger.debug("FETCH OK label=%s status=%d", label, resp.status_code)
@@ -92,11 +135,18 @@ async def _fetch_with_retry(
                     "FETCH FAILED label=%s exc_type=%s after %d attempts: %s",
                     label, type(e).__name__, max_attempts, e,
                 )
+        except OpenMeteoRateLimitError:
+            # Re-raise rate limit immediately without retrying
+            raise
         except httpx.HTTPStatusError as e:
-            # Non-transient HTTP error — do not retry
+            if e.response.status_code == 429:
+                raise OpenMeteoRateLimitError(
+                    f"Open-Meteo rate limit (HTTP 429) exceeded for {label}",
+                    response_body=e.response.text[:300],
+                )
             logger.error(
-                "FETCH HTTP_ERROR label=%s status=%d url=%s",
-                label, e.response.status_code, url,
+                "FETCH HTTP_ERROR label=%s status=%d url=%s body=%s",
+                label, e.response.status_code, url, e.response.text[:200],
             )
             raise
 
@@ -106,25 +156,34 @@ async def _fetch_with_retry(
 class OpenMeteoWeatherProvider:
     """Provider for fetching and normalizing weather and air-quality telemetry from Open-Meteo."""
 
-    FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
-    AIR_QUALITY_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
+    FORECAST_URL = _FORECAST_URL
+    AIR_QUALITY_URL = _AIR_QUALITY_URL
 
-    # Explicit per-phase timeout — generous connect for Render cold-start TLS,
+    # Explicit per-phase timeout — generous connect for cold-start TLS,
     # bounded read so slow responses don't stall indefinitely.
     TIMEOUT = httpx.Timeout(connect=15.0, read=30.0, write=15.0, pool=15.0)
+
+    def _base_params(self) -> dict:
+        """Return dict with apikey if configured, else empty dict."""
+        return {"apikey": _API_KEY} if _API_KEY else {}
 
     async def get_raw_weather(self, location: LocationResult) -> Dict[str, Any]:
         """
         Fetch forecast (required) then air quality (optional) from Open-Meteo.
 
-        Requests are sequential: forecast is fetched and validated first so that
-        AQI failures cannot disrupt the critical forecast path.
+        Requests are sequential: forecast first so AQI failures cannot
+        disrupt the critical forecast path.
 
+        If Open-Meteo Forecast returns HTTP 429:
+          Catches OpenMeteoRateLimitError, attempts to fetch real AQI if possible,
+          and returns a transparent fallback dataset explicitly marked isDemo=True.
         If Air Quality fails, proceeds with forecast data and sets AQI to None.
-        If Forecast fails after retries, raises the exception to trigger 502/503.
+        If Forecast fails due to other errors (500, network loss), re-raises for 502/503.
         """
         tz = location.timezone or "Asia/Kolkata"
+
         forecast_params = {
+            **self._base_params(),
             "latitude": location.latitude,
             "longitude": location.longitude,
             "current": "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation_probability,weather_code,wind_speed_10m,wind_direction_10m,visibility,uv_index",
@@ -138,6 +197,7 @@ class OpenMeteoWeatherProvider:
         }
 
         aq_params = {
+            **self._base_params(),
             "latitude": location.latitude,
             "longitude": location.longitude,
             "current": "pm10,pm2_5,us_aqi",
@@ -150,18 +210,28 @@ class OpenMeteoWeatherProvider:
         }
 
         async with httpx.AsyncClient(timeout=self.TIMEOUT) as client:
-            # --- Critical: Forecast (with retry) ---
+            # --- Phase 1: Forecast (with 429 handling) ---
             logger.info(
-                "WEATHER_FETCH city=%s lat=%.4f lon=%.4f tz=%s",
-                location.city, location.latitude, location.longitude, tz,
+                "WEATHER_FETCH city=%s lat=%.4f lon=%.4f tz=%s authenticated=%s",
+                location.city, location.latitude, location.longitude, tz, bool(_API_KEY),
             )
-            forecast_resp = await _fetch_with_retry(
-                client, self.FORECAST_URL, forecast_params, headers, "forecast"
-            )
-            forecast_data = forecast_resp.json()
-            logger.info("FORECAST_OK city=%s keys=%s", location.city, list(forecast_data.keys())[:6])
+            forecast_data: Optional[Dict[str, Any]] = None
+            rate_limited_429 = False
 
-            # --- Optional: Air Quality (with retry, fails gracefully) ---
+            try:
+                forecast_resp = await _fetch_with_retry(
+                    client, self.FORECAST_URL, forecast_params, headers, "forecast"
+                )
+                forecast_data = forecast_resp.json()
+                logger.info("FORECAST_OK city=%s keys=%s", location.city, list(forecast_data.keys())[:6])
+            except OpenMeteoRateLimitError as rle:
+                logger.warning(
+                    "FORECAST_429_RATE_LIMITED city=%s: %s (activating deterministic demo fallback)",
+                    location.city, rle,
+                )
+                rate_limited_429 = True
+
+            # --- Phase 2: Air Quality (with retry, fails gracefully) ---
             aq_data: Optional[Dict[str, Any]] = None
             try:
                 aq_resp = await _fetch_with_retry(
@@ -175,6 +245,14 @@ class OpenMeteoWeatherProvider:
                     location.city, type(e).__name__, e,
                 )
                 aq_data = None
+
+            # If forecast was rate-limited, build deterministic fallback weather
+            if rate_limited_429:
+                return build_fallback_weather(
+                    location=location,
+                    original_query=location.city,
+                    real_aqi_data=aq_data,
+                )
 
         return self._normalize_weather(location, forecast_data, aq_data)
 
@@ -336,7 +414,6 @@ class OpenMeteoWeatherProvider:
         }
 
     def _format_sun_time(self, iso_str: str) -> str:
-        """Format '2026-09-30T06:14' into '06:14 AM'."""
         try:
             dt = datetime.fromisoformat(iso_str)
             return dt.strftime("%I:%M %p")
@@ -344,7 +421,6 @@ class OpenMeteoWeatherProvider:
             return iso_str
 
     def _format_hour_label(self, iso_str: str) -> str:
-        """Format '2026-09-30T19:00' into '7 PM' (cross-platform compatible)."""
         try:
             dt = datetime.fromisoformat(iso_str)
             hour_12 = dt.hour % 12 or 12
@@ -354,7 +430,6 @@ class OpenMeteoWeatherProvider:
             return iso_str
 
     def _format_day_name(self, date_str: str) -> str:
-        """Format '2026-10-01' into 'Thu'."""
         try:
             dt = datetime.strptime(date_str, "%Y-%m-%d")
             return dt.strftime("%a")

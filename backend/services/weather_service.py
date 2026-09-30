@@ -141,8 +141,14 @@ class WeatherService:
                 normalized["alerts"] = []
                 normalized["meta"]["alertsAvailable"] = False
 
-            # Cache successful normalized result
-            self._set_in_cache(key, normalized)
+            # Cache only real live responses (do not cache demo fallback as successful live data)
+            if not normalized.get("meta", {}).get("isDemo", False):
+                self._set_in_cache(key, normalized)
+            else:
+                # Optionally cache demo data with short 60s TTL to prevent spamming rate-limited provider
+                now = time.time()
+                self._cache[key] = (normalized, now + 60, datetime.now(timezone.utc).isoformat(), now)
+
             return normalized
 
         except Exception as provider_error:

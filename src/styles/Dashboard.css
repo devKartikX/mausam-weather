@@ -354,6 +354,48 @@
   color: #fbbf24;
 }
 
+.hero-demo-pill {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  background: rgba(245, 158, 11, 0.16);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #fcd34d;
+  letter-spacing: 0.02em;
+}
+
+/* Demo Notice Banner */
+.dashboard-demo-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  border-left: 3px solid #f59e0b;
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-tight);
+}
+
+.demo-notice-badge {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: rgba(245, 158, 11, 0.25);
+  color: #fbbf24;
+  flex-shrink: 0;
+}
+
+.demo-notice-text {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
 .hero-updated-time {
   font-size: var(--font-size-xs);
   color: var(--text-muted);
