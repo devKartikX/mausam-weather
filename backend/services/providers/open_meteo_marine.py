@@ -19,7 +19,7 @@ class OpenMeteoMarineProvider:
     """Provider for fetching marine and surf telemetry from Open-Meteo."""
 
     MARINE_URL = "https://marine-api.open-meteo.com/v1/marine"
-    TIMEOUT_SECONDS = 4.0
+    TIMEOUT = httpx.Timeout(connect=10.0, read=15.0, write=10.0, pool=10.0)
 
     async def get_marine_data(self, location: LocationResult) -> Optional[Dict[str, Any]]:
         """
@@ -39,7 +39,7 @@ class OpenMeteoMarineProvider:
         }
 
         try:
-            async with httpx.AsyncClient(timeout=self.TIMEOUT_SECONDS) as client:
+            async with httpx.AsyncClient(timeout=self.TIMEOUT) as client:
                 resp = await client.get(self.MARINE_URL, params=params, headers=headers)
                 if resp.status_code != 200:
                     logger.debug("Marine API returned status %s for %s", resp.status_code, location.city)

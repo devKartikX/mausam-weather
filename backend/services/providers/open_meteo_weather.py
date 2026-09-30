@@ -32,7 +32,9 @@ class OpenMeteoWeatherProvider:
 
     FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
     AIR_QUALITY_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
-    TIMEOUT_SECONDS = 5.0
+    # Split timeout: generous connect budget for Render cold-start TLS handshakes,
+    # tighter read budget so hung responses don't stall the request indefinitely.
+    TIMEOUT = httpx.Timeout(connect=10.0, read=20.0, write=10.0, pool=10.0)
 
     async def get_raw_weather(self, location: LocationResult) -> Dict[str, Any]:
         """
@@ -66,7 +68,7 @@ class OpenMeteoWeatherProvider:
             "Accept": "application/json",
         }
 
-        async with httpx.AsyncClient(timeout=self.TIMEOUT_SECONDS) as client:
+        async with httpx.AsyncClient(timeout=self.TIMEOUT) as client:
             async def fetch_forecast():
                 resp = await client.get(self.FORECAST_URL, params=forecast_params, headers=headers)
                 resp.raise_for_status()
