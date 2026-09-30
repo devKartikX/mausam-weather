@@ -32,7 +32,7 @@ services:
         fromService:
           type: web
           name: mausam-backend
-          property: host
+          property: hostURL
     headers:
       - path: /*
         name: X-Frame-Options
