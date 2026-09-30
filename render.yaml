@@ -18,8 +18,9 @@ services:
   # ----------------------------------------------------------------------------
   # 2. Mausam Frontend (Vite / React Static Site)
   # ----------------------------------------------------------------------------
-  - type: static
+  - type: web
     name: mausam-frontend
+    runtime: static
     buildCommand: npm install && npm run build
     staticPublishPath: dist
     autoDeploy: true
