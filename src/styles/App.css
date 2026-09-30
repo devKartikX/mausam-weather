@@ -1,0 +1,73 @@
+/* ==========================================================================
+   APP SHELL & STEP 1 PLACEHOLDER STYLES
+   ========================================================================== */
+
+.placeholder-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--space-8) var(--space-6);
+  margin: auto;
+  width: 100%;
+}
+
+.placeholder-icon-wrapper {
+  width: 80px;
+  height: 80px;
+  border-radius: var(--radius-xl);
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-accent);
+  box-shadow: var(--shadow-md);
+  margin-bottom: var(--space-5);
+}
+
+.placeholder-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full);
+  background: var(--color-accent-subtle);
+  border: 1px solid var(--border-accent);
+  color: var(--color-accent);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin-bottom: var(--space-4);
+}
+
+.placeholder-title {
+  font-size: var(--font-size-4xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  margin-bottom: var(--space-1);
+}
+
+.placeholder-subtitle {
+  font-size: var(--font-size-lg);
+  font-weight: 500;
+  color: var(--color-accent);
+  margin-bottom: var(--space-6);
+}
+
+.placeholder-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--space-5);
+  max-width: 420px;
+  box-shadow: var(--shadow-sm);
+}
+
+.placeholder-desc {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
+}

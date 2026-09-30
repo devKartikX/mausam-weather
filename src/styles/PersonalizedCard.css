@@ -1,0 +1,179 @@
+/* ==========================================================================
+   PERSONALIZED INSIGHT CARD STYLES
+   ========================================================================== */
+
+.personalized-insight-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-left: 3px solid var(--card-accent, var(--color-accent));
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast);
+  position: relative;
+}
+
+.personalized-insight-card:hover {
+  background-color: var(--bg-card-hover);
+  border-color: var(--border-strong);
+  border-left-color: var(--card-accent, var(--color-accent));
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+/* Card Header */
+.insight-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.insight-category-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.insight-category-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.insight-category-name {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+/* Status Badges */
+.insight-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  font-size: 0.6875rem; /* 11px */
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.status-badge--favorable {
+  background-color: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.status-badge--moderate {
+  background-color: rgba(99, 102, 241, 0.15);
+  color: #a5b4fc;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+.status-badge--advisory {
+  background-color: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+/* Body */
+.insight-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.insight-title {
+  font-size: var(--font-size-base);
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: var(--line-height-tight);
+}
+
+.insight-explanation {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  line-height: var(--line-height-normal);
+}
+
+/* Metrics Grid */
+.insight-metrics-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.insight-metric-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 4px var(--space-2);
+  border-radius: var(--radius-sm);
+  background-color: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-subtle);
+  font-size: 0.6875rem;
+}
+
+.metric-pill-label {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.metric-pill-value {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.insight-metric-pill--warning .metric-pill-value {
+  color: #fbbf24;
+}
+
+.insight-metric-pill--good .metric-pill-value {
+  color: #34d399;
+}
+
+/* Recommendation Box */
+.insight-recommendation-box {
+  background-color: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.recommendation-icon-wrap {
+  color: #fbbf24;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+
+.recommendation-content {
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-normal);
+  color: var(--text-secondary);
+}
+
+.recommendation-prefix {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.recommendation-text {
+  color: var(--text-secondary);
+}

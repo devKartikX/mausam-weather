@@ -1,0 +1,224 @@
+/* ==========================================================================
+   MAUSAM — DESIGN SYSTEM TOKENS & GLOBAL STYLES
+   ========================================================================== */
+
+:root {
+  /* Color Palette — Weather / Meteorological Theme */
+  --bg-primary: #0b111e;
+  --bg-secondary: #131d2e;
+  --bg-card: #182338;
+  --bg-card-hover: #1e2c45;
+  --bg-elevated: #22324e;
+  
+  /* Text Colors */
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --text-inverted: #0b111e;
+
+  /* Borders & Dividers */
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-default: rgba(255, 255, 255, 0.12);
+  --border-strong: rgba(255, 255, 255, 0.22);
+  --border-accent: rgba(56, 189, 248, 0.4);
+
+  /* Accents & States */
+  --color-accent: #38bdf8;
+  --color-accent-subtle: rgba(56, 189, 248, 0.12);
+  --color-accent-hover: #0284c7;
+  --color-success: #10b981;
+  --color-success-subtle: rgba(16, 185, 129, 0.14);
+  --color-warning: #f59e0b;
+  --color-warning-subtle: rgba(245, 158, 11, 0.14);
+  --color-danger: #ef4444;
+  --color-danger-subtle: rgba(239, 68, 68, 0.14);
+  --color-info: #60a5fa;
+
+  /* Typography */
+  --font-family-base: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-size-xs: 0.75rem;    /* 12px */
+  --font-size-sm: 0.875rem;   /* 14px */
+  --font-size-base: 1rem;     /* 16px */
+  --font-size-lg: 1.125rem;   /* 18px */
+  --font-size-xl: 1.25rem;    /* 20px */
+  --font-size-2xl: 1.5rem;    /* 24px */
+  --font-size-3xl: 1.875rem;  /* 30px */
+  --font-size-4xl: 2.25rem;   /* 36px */
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.65;
+
+  /* Spacing */
+  --space-1: 0.25rem;  /* 4px */
+  --space-2: 0.5rem;   /* 8px */
+  --space-3: 0.75rem;  /* 12px */
+  --space-4: 1rem;     /* 16px */
+  --space-5: 1.25rem;  /* 20px */
+  --space-6: 1.5rem;   /* 24px */
+  --space-8: 2rem;     /* 32px */
+  --space-10: 2.5rem;  /* 40px */
+  --space-12: 3rem;    /* 48px */
+
+  /* Border Radii */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.28);
+  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.38);
+
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-base: 220ms ease;
+  --transition-slow: 350ms ease;
+
+  /* Layout dimensions */
+  --container-max-width: 640px; /* Mobile-first container max width */
+}
+
+/* ==========================================================================
+   CSS RESET & BASE ELEMENTS
+   ========================================================================== */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ==========================================================================
+   RESPONSIVE APP CONTAINER (Mobile-First Shell)
+   ========================================================================== */
+
+.app-viewport {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: var(--space-4);
+  background: radial-gradient(circle at 50% 10%, rgba(56, 189, 248, 0.08) 0%, transparent 60%),
+              var(--bg-primary);
+}
+
+.app-shell {
+  width: 100%;
+  max-width: var(--container-max-width);
+  min-height: 600px;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Responsive Scaling: Phone View vs Tablet/Desktop */
+@media (max-width: 640px) {
+  .app-viewport {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .app-shell {
+    max-width: 100%;
+    min-height: 100vh;
+    border-radius: 0;
+    border: none;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --container-max-width: 680px;
+  }
+}
+
+/* ==========================================================================
+   SKELETON & ACCESSIBILITY UTILITIES
+   ========================================================================== */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 25%,
+    rgba(255, 255, 255, 0.09) 37%,
+    rgba(255, 255, 255, 0.04) 63%
+  );
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.8s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+  display: block;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+.skeleton--text {
+  height: 1rem;
+  border-radius: var(--radius-sm);
+}
+
+.skeleton--rect {
+  border-radius: var(--radius-md);
+}
+
+.skeleton--circle {
+  border-radius: 50%;
+}
+
+.skeleton--pill {
+  border-radius: var(--radius-full);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+    background: rgba(255, 255, 255, 0.06);
+  }
+}
+
