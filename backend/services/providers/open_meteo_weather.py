@@ -5,7 +5,10 @@ Fetches:
   1. Forecast API: current observations, 10-hour forecast, 7-day daily forecast.
   2. Air Quality API: US AQI, PM2.5, PM10.
 
-Executes both calls concurrently via httpx with a 5.0-second timeout.
+Requests are made sequentially (forecast first, then AQI) for production
+reliability — the critical forecast is isolated from AQI failures.
+Transient failures are retried up to 3 times with exponential backoff.
+
 Attribution note:
     Weather data by Open-Meteo.com under CC-BY 4.0 license.
 """
@@ -26,21 +29,99 @@ from backend.services.utils import (
 
 logger = logging.getLogger(__name__)
 
+# Transient error types that warrant a retry
+_TRANSIENT_EXCEPTIONS = (
+    httpx.ConnectTimeout,
+    httpx.ReadTimeout,
+    httpx.WriteTimeout,
+    httpx.PoolTimeout,
+    httpx.ConnectError,
+    httpx.RemoteProtocolError,
+)
+
+
+async def _fetch_with_retry(
+    client: httpx.AsyncClient,
+    url: str,
+    params: dict,
+    headers: dict,
+    label: str,
+    max_attempts: int = 3,
+) -> httpx.Response:
+    """
+    Fetch a URL with bounded exponential-backoff retry for transient errors.
+
+    Retries: ConnectTimeout, ReadTimeout, ConnectError, RemoteProtocolError.
+    Does NOT retry: 4xx client errors, 5xx server errors (except 503/429 on attempt 1).
+    Raises on permanent failure.
+    """
+    last_exc = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            logger.debug(
+                "FETCH attempt=%d/%d label=%s url=%s",
+                attempt, max_attempts, label, url,
+            )
+            resp = await client.get(url, params=params, headers=headers)
+
+            # Retry on 429 / 503 only on first attempt
+            if resp.status_code in (429, 503) and attempt < max_attempts:
+                delay = 0.5 * (2 ** (attempt - 1))
+                logger.warning(
+                    "RETRY label=%s status=%d attempt=%d delay=%.1fs",
+                    label, resp.status_code, attempt, delay,
+                )
+                await asyncio.sleep(delay)
+                continue
+
+            resp.raise_for_status()
+            logger.debug("FETCH OK label=%s status=%d", label, resp.status_code)
+            return resp
+
+        except _TRANSIENT_EXCEPTIONS as e:
+            last_exc = e
+            if attempt < max_attempts:
+                delay = 0.5 * (2 ** (attempt - 1))
+                logger.warning(
+                    "RETRY label=%s exc_type=%s attempt=%d delay=%.1fs exc=%s",
+                    label, type(e).__name__, attempt, delay, e,
+                )
+                await asyncio.sleep(delay)
+            else:
+                logger.error(
+                    "FETCH FAILED label=%s exc_type=%s after %d attempts: %s",
+                    label, type(e).__name__, max_attempts, e,
+                )
+        except httpx.HTTPStatusError as e:
+            # Non-transient HTTP error — do not retry
+            logger.error(
+                "FETCH HTTP_ERROR label=%s status=%d url=%s",
+                label, e.response.status_code, url,
+            )
+            raise
+
+    raise last_exc
+
 
 class OpenMeteoWeatherProvider:
     """Provider for fetching and normalizing weather and air-quality telemetry from Open-Meteo."""
 
     FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
     AIR_QUALITY_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
-    # Split timeout: generous connect budget for Render cold-start TLS handshakes,
-    # tighter read budget so hung responses don't stall the request indefinitely.
-    TIMEOUT = httpx.Timeout(connect=10.0, read=20.0, write=10.0, pool=10.0)
+
+    # Explicit per-phase timeout — generous connect for Render cold-start TLS,
+    # bounded read so slow responses don't stall indefinitely.
+    TIMEOUT = httpx.Timeout(connect=15.0, read=30.0, write=15.0, pool=15.0)
 
     async def get_raw_weather(self, location: LocationResult) -> Dict[str, Any]:
         """
-        Fetch forecast and air quality data in parallel from Open-Meteo.
-        If Air Quality fails, proceeds with forecast data and sets air quality to None.
-        If Forecast fails, raises the exception to trigger 502/503.
+        Fetch forecast (required) then air quality (optional) from Open-Meteo.
+
+        Requests are sequential: forecast is fetched and validated first so that
+        AQI failures cannot disrupt the critical forecast path.
+
+        If Air Quality fails, proceeds with forecast data and sets AQI to None.
+        If Forecast fails after retries, raises the exception to trigger 502/503.
         """
         tz = location.timezone or "Asia/Kolkata"
         forecast_params = {
@@ -69,24 +150,31 @@ class OpenMeteoWeatherProvider:
         }
 
         async with httpx.AsyncClient(timeout=self.TIMEOUT) as client:
-            async def fetch_forecast():
-                resp = await client.get(self.FORECAST_URL, params=forecast_params, headers=headers)
-                resp.raise_for_status()
-                return resp.json()
-
-            async def fetch_air_quality():
-                try:
-                    resp = await client.get(self.AIR_QUALITY_URL, params=aq_params, headers=headers)
-                    resp.raise_for_status()
-                    return resp.json()
-                except Exception as e:
-                    logger.warning("Air quality API request failed gracefully: %s", e)
-                    return None
-
-            forecast_data, aq_data = await asyncio.gather(
-                fetch_forecast(),
-                fetch_air_quality(),
+            # --- Critical: Forecast (with retry) ---
+            logger.info(
+                "WEATHER_FETCH city=%s lat=%.4f lon=%.4f tz=%s",
+                location.city, location.latitude, location.longitude, tz,
             )
+            forecast_resp = await _fetch_with_retry(
+                client, self.FORECAST_URL, forecast_params, headers, "forecast"
+            )
+            forecast_data = forecast_resp.json()
+            logger.info("FORECAST_OK city=%s keys=%s", location.city, list(forecast_data.keys())[:6])
+
+            # --- Optional: Air Quality (with retry, fails gracefully) ---
+            aq_data: Optional[Dict[str, Any]] = None
+            try:
+                aq_resp = await _fetch_with_retry(
+                    client, self.AIR_QUALITY_URL, aq_params, headers, "air_quality"
+                )
+                aq_data = aq_resp.json()
+                logger.debug("AQI_OK city=%s", location.city)
+            except Exception as e:
+                logger.warning(
+                    "AQI_SKIP city=%s exc_type=%s exc=%s (proceeding without AQI)",
+                    location.city, type(e).__name__, e,
+                )
+                aq_data = None
 
         return self._normalize_weather(location, forecast_data, aq_data)
 
@@ -119,8 +207,6 @@ class OpenMeteoWeatherProvider:
         low_temp = float(daily_lows[0]) if daily_lows else float(current_raw.get("temperature_2m", 0))
 
         # 4. Precipitation probability
-        # Open-Meteo current endpoint supports precipitation_probability.
-        # Fallback to hourly[0] if current is None.
         curr_pop = current_raw.get("precipitation_probability")
         if curr_pop is None:
             hourly_pops = hourly_raw.get("precipitation_probability", [])
@@ -137,7 +223,7 @@ class OpenMeteoWeatherProvider:
         sunrise_str = self._format_sun_time(daily_sunrises[0]) if daily_sunrises else "06:00 AM"
         sunset_str = self._format_sun_time(daily_sunsets[0]) if daily_sunsets else "06:30 PM"
 
-        # 7. Air Quality (US AQI)
+        # 7. Air Quality (US AQI) — optional, gracefully null
         aqi_val = aq_current.get("us_aqi") if aq_current else None
         aqi_status = derive_aqi_status(int(aqi_val)) if aqi_val is not None else None
         pm25_val = float(aq_current.get("pm2_5")) if aq_current and aq_current.get("pm2_5") is not None else None
@@ -150,7 +236,6 @@ class OpenMeteoWeatherProvider:
         h_codes = hourly_raw.get("weather_code", [])
         h_pops = hourly_raw.get("precipitation_probability", [])
 
-        # Find current hour index based on current_raw time or default to 0
         start_idx = 0
         curr_time_str = current_raw.get("time")
         if curr_time_str and curr_time_str in h_times:

@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.api.health import router as health_router
 from backend.api.weather import router as weather_router
 from backend.api.location import router as location_router
+from backend.api.diagnostics import router as diagnostics_router
 
 app = FastAPI(
     title="Mausam Backend API",
@@ -68,3 +69,4 @@ app.add_middleware(
 app.include_router(health_router, prefix="/api", tags=["health"])
 app.include_router(weather_router, prefix="/api", tags=["weather"])
 app.include_router(location_router, prefix="/api", tags=["location"])
+app.include_router(diagnostics_router, prefix="/api", tags=["diagnostics"])

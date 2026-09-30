@@ -9,10 +9,13 @@ Flow:
     -> normalized WeatherResponse
 """
 
+import logging
 from fastapi import APIRouter, Query, HTTPException, status
 from backend.schemas.weather import WeatherResponse
 from backend.services.location_service import location_service
 from backend.services.weather_service import weather_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -65,6 +68,13 @@ async def get_weather(
     try:
         weather_data = await weather_service.get_weather(location_result, clean_location)
     except Exception as exc:
+        logger.error(
+            "WEATHER_502 location=%s exc_type=%s exc=%s",
+            clean_location,
+            type(exc).__name__,
+            str(exc),
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Weather data provider temporarily unavailable. Please try again shortly.",
